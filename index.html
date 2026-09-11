@@ -118,7 +118,7 @@
       <div class="inputbox"><span class="sym">$</span>
         <input id="dance" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Dance dollars">
       </div>
-      <div class="err">Cannot be negative</div>
+      <div class="err" id="dance-err">Cannot be negative</div>
     </div>
     <div class="field" id="f-ecount">
       <label for="ecount">ENTERTAINERS</label>
@@ -135,7 +135,7 @@
       <div class="inputbox"><span class="sym">$</span>
         <input id="server" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Server dance dollars">
       </div>
-      <div class="err">Cannot be negative</div>
+      <div class="err" id="server-err">Cannot be negative</div>
     </div>
     <div class="field" id="f-scount">
       <label for="scount">SERVERS</label>
@@ -196,19 +196,9 @@
 /* ---- Pure business math (no DOM) ---- */
 var DD = (function () {
   var SMALL_CHARGE = 24, SMALL_REDEEM = 18, SMALL_PER_LARGE = 21;
-
-  // Minimum Small-equivalent units for a redeemable target (whole cents),
-  // i.e. Math.ceil(target / 18) computed on integer cents.
-  function minimumUnits(targetCents) {
-    if (!(targetCents > 0)) return 0;
-    return Math.ceil(targetCents / (SMALL_REDEEM * 100));
-  }
-
-  // Print-count optimization: if the leftover after filling Larges is 20 Small,
-  // add ONE unit ($18 redeemable) so the whole thing rounds up to the next Large.
-  function optimizedUnits(minUnits) {
-    return (minUnits % SMALL_PER_LARGE === SMALL_PER_LARGE - 1) ? minUnits + 1 : minUnits;
-  }
+  var BLOCK_CENTS = 500 * 100;      // the club converts nominal Dance Dollars in $500 blocks
+  var UNITS_PER_BLOCK = 28;         // every $500 nominal = 28 small-equivalent units
+                                    //   = 1 Large + 7 Small = $504 redeemable / $672 charge
 
   function alloc(units) {
     return {
@@ -220,17 +210,22 @@ var DD = (function () {
     };
   }
 
-  // One recipient's bundle for a redeemable target in cents.
-  function bundleFor(targetCents) {
-    return alloc(optimizedUnits(minimumUnits(targetCents)));
+  // One recipient's bundle for a NOMINAL share given in whole cents.
+  // Only exact multiples of $500 have a proven rule. Anything else returns null
+  // (the UI blocks) until the club confirms how non-$500 amounts are handled.
+  function bundleFor(nominalCents) {
+    if (!(nominalCents > 0)) return alloc(0);
+    if (nominalCents % BLOCK_CENTS !== 0) return null;
+    var blocks = nominalCents / BLOCK_CENTS;
+    return alloc(blocks * UNITS_PER_BLOCK);
   }
 
-  // Split rule: divide the amount per recipient FIRST, then compute ONE
+  // Split rule: divide the nominal amount per recipient FIRST, compute ONE
   // recipient's physical bundle, then multiply the pieces by the head count.
   function group(amountDollars, count) {
     var amountCents = Math.round(amountDollars * 100);
-    var perTargetCents = amountCents / count;
-    var each = bundleFor(perTargetCents);
+    var each = (amountCents % count === 0) ? bundleFor(amountCents / count) : null;
+    if (!each) return null;
     return {
       count: count,
       each: each,
@@ -240,19 +235,25 @@ var DD = (function () {
   }
 
   // dance/server are non-negative dollar amounts; counts are whole numbers >= 1.
+  // Returns null for a group whose per-recipient share is not a $500 multiple.
   function calculate(dance, entertainers, server, servers) {
     var ent = group(dance, entertainers);
     var srv = (server > 0) ? group(server, servers) : null;
+    var serverActive = server > 0;
+    if (!ent || (serverActive && !srv)) {
+      return { entertainers: ent, servers: srv, total: null, blocked: true,
+               entBlocked: !ent, srvBlocked: serverActive && !srv };
+    }
     var total = { large: ent.all.large, small: ent.all.small, charge: ent.all.charge, redeemable: ent.all.redeemable };
     if (srv) {
       total.large += srv.all.large; total.small += srv.all.small;
       total.charge += srv.all.charge; total.redeemable += srv.all.redeemable;
     }
-    return { entertainers: ent, servers: srv, total: total };
+    return { entertainers: ent, servers: srv, total: total, blocked: false, entBlocked: false, srvBlocked: false };
   }
 
-  return { calculate: calculate, group: group, bundleFor: bundleFor,
-           minimumUnits: minimumUnits, optimizedUnits: optimizedUnits, alloc: alloc };
+  return { calculate: calculate, group: group, bundleFor: bundleFor, alloc: alloc,
+           BLOCK_CENTS: BLOCK_CENTS, UNITS_PER_BLOCK: UNITS_PER_BLOCK };
 })();
 if (typeof module !== "undefined") module.exports = DD;
 </script>
@@ -262,6 +263,8 @@ if (typeof module !== "undefined") module.exports = DD;
   var $ = function (id) { return document.getElementById(id); };
   var dance = $("dance"), ecount = $("ecount"), server = $("server"), scount = $("scount"), note = $("note");
   var last = null;
+  var MSG_NEG = "Cannot be negative";
+  var MSG_BLOCK = "Amount must split evenly into $500 increments per person.";
 
   function money(n) { return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 
@@ -301,11 +304,12 @@ if (typeof module !== "undefined") module.exports = DD;
     }
   }
 
-  // Returns true when results were updated, false when blocked by an invalid quantity.
+  // Returns true when results were updated, false when blocked by an invalid field.
   function run() {
     var d = readMoney(dance), ec = readCount(ecount), s = readMoney(server), sc = readCount(scount);
     var serverActive = s.value > 0;
     var scBad = sc.bad && serverActive;   // server quantity is irrelevant when server $ is blank/0
+    $("dance-err").textContent = MSG_NEG; $("server-err").textContent = MSG_NEG;
     $("f-dance").classList.toggle("bad", d.bad);
     $("f-ecount").classList.toggle("bad", ec.bad);
     $("f-server").classList.toggle("bad", s.bad);
@@ -314,6 +318,11 @@ if (typeof module !== "undefined") module.exports = DD;
     if (ec.bad || scBad) return false;   // BLOCK: leave the results untouched until corrected
 
     var r = DD.calculate(d.value, ec.value, s.value, serverActive ? sc.value : 1);
+    if (r.blocked) {                     // BLOCK: a per-recipient share is not a $500 multiple
+      if (r.entBlocked) { $("dance-err").textContent = MSG_BLOCK; $("f-dance").classList.add("bad"); }
+      if (r.srvBlocked) { $("server-err").textContent = MSG_BLOCK; $("f-server").classList.add("bad"); }
+      return false;
+    }
     last = r;
 
     fillGroup("e", r.entertainers, "ENTERTAINER", "ENTERTAINERS");
