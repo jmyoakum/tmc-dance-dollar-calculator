@@ -42,11 +42,15 @@
 
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 13px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+  .pair { display: flex; gap: 12px; }
+  .pair .field:first-child { flex: 1; min-width: 0; }
+  .pair .field:last-child { width: 112px; flex: none; }
   .inputbox {
     display: flex; align-items: center;
     background: var(--card); border: 2px solid var(--line); border-radius: 14px;
     height: 64px; padding: 0 18px;
   }
+  .pair .field:last-child .inputbox { padding: 0 12px; }
   .inputbox:focus-within { border-color: var(--accent); }
   .inputbox .sym { font-size: 28px; font-weight: 600; color: var(--muted); }
   .inputbox input {
@@ -54,10 +58,12 @@
     background: transparent; border: 0; outline: none;
     color: var(--text); font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums;
   }
+  .inputbox input.qty { text-align: center; margin: 0; }
   .inputbox input::placeholder { color: #4b5260; font-weight: 500; }
   .field.bad .inputbox { border-color: #e5484d; }
   .err { display: none; color: #ff8a8e; font-size: 13px; margin-top: 6px; }
   .field.bad .err { display: block; }
+  .optional { margin-top: 6px; }
 
   .btn {
     display: block; width: 100%; height: 64px; border: 0; border-radius: 14px;
@@ -72,14 +78,22 @@
 
   .results { margin-top: 24px; }
   .card {
-    background: var(--card-2); border: 1px solid var(--accent); border-radius: 16px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
     padding: 16px 18px; margin-bottom: 14px;
   }
   .card .title { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--accent); }
-  .card .give { font-size: 38px; font-weight: 800; line-height: 1.15; margin: 8px 0 12px; font-variant-numeric: tabular-nums; }
-  .card .give small { font-size: 19px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; }
-  .card .charge-k { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--muted); margin-top: 8px; }
-  .card .charge-v { font-size: 44px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .card .sub { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); margin-top: 10px; }
+  .card .give { font-size: 34px; font-weight: 800; line-height: 1.15; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .card .give small { font-size: 18px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; }
+  .card .give.all { font-size: 26px; }
+  .card .redeem { font-size: 16px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .card .redeem b { color: var(--text); font-weight: 700; }
+  .card .group { border-top: 1px solid var(--line); margin-top: 12px; }
+
+  .card.total { background: var(--card-2); border-color: var(--accent); }
+  .card.total .give { font-size: 30px; margin-top: 8px; }
+  .card.total .charge-k { font-size: 13px; font-weight: 800; letter-spacing: 0.12em; color: var(--muted); margin-top: 12px; }
+  .card.total .charge-v { font-size: 44px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .kv { display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding: 10px 0 2px; margin-top: 10px; }
   .kv .k { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); }
   .kv .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -98,23 +112,71 @@
     <div class="t2">Calculator</div>
   </header>
 
-  <div class="field" id="f-dance">
-    <label for="dance">DANCE AMOUNT</label>
-    <div class="inputbox"><span class="sym">$</span>
-      <input id="dance" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Dance amount in dollars">
+  <div class="pair">
+    <div class="field" id="f-dance">
+      <label for="dance">DANCE DOLLARS</label>
+      <div class="inputbox"><span class="sym">$</span>
+        <input id="dance" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Dance dollars">
+      </div>
+      <div class="err">Cannot be negative</div>
     </div>
-    <div class="err">Cannot be negative</div>
+    <div class="field" id="f-ecount">
+      <label for="ecount">ENTERTAINERS</label>
+      <div class="inputbox">
+        <input id="ecount" class="qty" type="text" inputmode="numeric" autocomplete="off" value="1" aria-label="Number of entertainers">
+      </div>
+      <div class="err">Enter a whole number of recipients</div>
+    </div>
+  </div>
+
+  <div class="pair optional">
+    <div class="field" id="f-server">
+      <label for="server">SERVER DANCE DOLLARS</label>
+      <div class="inputbox"><span class="sym">$</span>
+        <input id="server" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Server dance dollars">
+      </div>
+      <div class="err">Cannot be negative</div>
+    </div>
+    <div class="field" id="f-scount">
+      <label for="scount">SERVERS</label>
+      <div class="inputbox">
+        <input id="scount" class="qty" type="text" inputmode="numeric" autocomplete="off" value="1" aria-label="Number of servers">
+      </div>
+      <div class="err">Enter a whole number of recipients</div>
+    </div>
   </div>
 
   <button class="btn btn-primary" id="calc" type="button">CALCULATE</button>
 
   <div class="results" id="results">
-    <div class="card">
-      <div class="title">GIVE</div>
-      <div class="give" id="e-give">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+    <div class="card" id="card-ent">
+      <div class="title" id="e-title">ENTERTAINER</div>
+      <div class="sub" id="e-each-k">GIVE</div>
+      <div class="give" id="e-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      <div class="redeem"><b id="e-redeem">$0</b> redeemable</div>
+      <div class="group" id="e-all-group" hidden>
+        <div class="sub" id="e-all-k">FOR 2 ENTERTAINERS</div>
+        <div class="give all" id="e-all">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      </div>
+    </div>
+
+    <div class="card" id="card-srv" hidden>
+      <div class="title" id="s-title">SERVER</div>
+      <div class="sub" id="s-each-k">GIVE</div>
+      <div class="give" id="s-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      <div class="redeem"><b id="s-redeem">$0</b> redeemable</div>
+      <div class="group" id="s-all-group" hidden>
+        <div class="sub" id="s-all-k">FOR 2 SERVERS</div>
+        <div class="give all" id="s-all">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      </div>
+    </div>
+
+    <div class="card total">
+      <div class="title">TOTAL TO RING UP</div>
+      <div class="give" id="t-give">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
       <div class="charge-k">CUSTOMER CHARGE</div>
-      <div class="charge-v" id="e-charge">$0</div>
-      <div class="kv"><span class="k">PAYOUT</span><span class="v" id="e-pay">$0</span></div>
+      <div class="charge-v" id="t-charge">$0</div>
+      <div class="kv"><span class="k">REDEEMABLE VALUE</span><span class="v" id="t-redeem">$0</span></div>
     </div>
   </div>
 
@@ -135,12 +197,17 @@
 var DD = (function () {
   var SMALL_CHARGE = 24, SMALL_REDEEM = 18, SMALL_PER_LARGE = 21;
 
-  // Small-equivalent units needed for a redeemable target given in whole cents.
-  // Same as Math.ceil(targetRedeemable / 18), computed on integer cents so
-  // floating-point noise can never round an exact target up by one unit.
-  function unitsFor(targetCents) {
+  // Minimum Small-equivalent units for a redeemable target (whole cents),
+  // i.e. Math.ceil(target / 18) computed on integer cents.
+  function minimumUnits(targetCents) {
     if (!(targetCents > 0)) return 0;
     return Math.ceil(targetCents / (SMALL_REDEEM * 100));
+  }
+
+  // Print-count optimization: if the leftover after filling Larges is 20 Small,
+  // add ONE unit ($18 redeemable) so the whole thing rounds up to the next Large.
+  function optimizedUnits(minUnits) {
+    return (minUnits % SMALL_PER_LARGE === SMALL_PER_LARGE - 1) ? minUnits + 1 : minUnits;
   }
 
   function alloc(units) {
@@ -153,12 +220,39 @@ var DD = (function () {
     };
   }
 
-  // amount: non-negative redeemable dollar target (may include cents).
-  function calculate(amount) {
-    return alloc(unitsFor(Math.round(amount * 100)));
+  // One recipient's bundle for a redeemable target in cents.
+  function bundleFor(targetCents) {
+    return alloc(optimizedUnits(minimumUnits(targetCents)));
   }
 
-  return { calculate: calculate, unitsFor: unitsFor, alloc: alloc };
+  // Split rule: divide the amount per recipient FIRST, then compute ONE
+  // recipient's physical bundle, then multiply the pieces by the head count.
+  function group(amountDollars, count) {
+    var amountCents = Math.round(amountDollars * 100);
+    var perTargetCents = amountCents / count;
+    var each = bundleFor(perTargetCents);
+    return {
+      count: count,
+      each: each,
+      all: { large: each.large * count, small: each.small * count,
+             charge: each.charge * count, redeemable: each.redeemable * count }
+    };
+  }
+
+  // dance/server are non-negative dollar amounts; counts are whole numbers >= 1.
+  function calculate(dance, entertainers, server, servers) {
+    var ent = group(dance, entertainers);
+    var srv = (server > 0) ? group(server, servers) : null;
+    var total = { large: ent.all.large, small: ent.all.small, charge: ent.all.charge, redeemable: ent.all.redeemable };
+    if (srv) {
+      total.large += srv.all.large; total.small += srv.all.small;
+      total.charge += srv.all.charge; total.redeemable += srv.all.redeemable;
+    }
+    return { entertainers: ent, servers: srv, total: total };
+  }
+
+  return { calculate: calculate, group: group, bundleFor: bundleFor,
+           minimumUnits: minimumUnits, optimizedUnits: optimizedUnits, alloc: alloc };
 })();
 if (typeof module !== "undefined") module.exports = DD;
 </script>
@@ -166,13 +260,13 @@ if (typeof module !== "undefined") module.exports = DD;
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var dance = $("dance"), note = $("note");
+  var dance = $("dance"), ecount = $("ecount"), server = $("server"), scount = $("scount"), note = $("note");
   var last = null;
 
   function money(n) { return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 }); }
 
-  // Returns { value, bad }. Blank -> 0. Strips $ , and spaces.
-  function readNum(el) {
+  // Dollar field. Blank -> 0. Strips $ , and spaces. Negative -> flagged, treated as 0.
+  function readMoney(el) {
     var raw = String(el.value).replace(/[$,\s]/g, "");
     if (raw === "") return { value: 0, bad: false };
     var n = Number(raw);
@@ -180,33 +274,87 @@ if (typeof module !== "undefined") module.exports = DD;
     if (n < 0) return { value: 0, bad: true };
     return { value: n, bad: false };
   }
+  // Quantity field. Blank -> 1. Otherwise must be a positive whole number
+  // (0, negatives, decimals are invalid). Invalid -> bad, and the calculation is BLOCKED.
+  function readCount(el) {
+    var raw = String(el.value).replace(/[,\s]/g, "");
+    if (raw === "") return { value: 1, bad: false };
+    var n = Number(raw);
+    if (!isFinite(n) || n < 1 || Math.floor(n) !== n) return { value: null, bad: true };
+    return { value: n, bad: false };
+  }
 
+  function giveHTML(a) {
+    return a.large + " <small>LARGE</small> + " + a.small + " <small>SMALL</small>";
+  }
+
+  function fillGroup(prefix, g, singular, plural) {
+    var many = g.count > 1;
+    $(prefix + "-title").textContent = many ? plural : singular;
+    $(prefix + "-each-k").textContent = many ? "EACH " + singular : "GIVE";
+    $(prefix + "-each").innerHTML = giveHTML(g.each);
+    $(prefix + "-redeem").textContent = money(g.each.redeemable);
+    $(prefix + "-all-group").hidden = !many;
+    if (many) {
+      $(prefix + "-all-k").textContent = "FOR " + g.count + " " + plural;
+      $(prefix + "-all").innerHTML = giveHTML(g.all);
+    }
+  }
+
+  // Returns true when results were updated, false when blocked by an invalid quantity.
   function run() {
-    var d = readNum(dance);
+    var d = readMoney(dance), ec = readCount(ecount), s = readMoney(server), sc = readCount(scount);
+    var serverActive = s.value > 0;
+    var scBad = sc.bad && serverActive;   // server quantity is irrelevant when server $ is blank/0
     $("f-dance").classList.toggle("bad", d.bad);
+    $("f-ecount").classList.toggle("bad", ec.bad);
+    $("f-server").classList.toggle("bad", s.bad);
+    $("f-scount").classList.toggle("bad", scBad);
+    note.textContent = "";
+    if (ec.bad || scBad) return false;   // BLOCK: leave the results untouched until corrected
 
-    var r = DD.calculate(d.value);
+    var r = DD.calculate(d.value, ec.value, s.value, serverActive ? sc.value : 1);
     last = r;
 
-    $("e-give").innerHTML = r.large + " <small>LARGE</small> + " + r.small + " <small>SMALL</small>";
-    $("e-charge").textContent = money(r.charge);
-    $("e-pay").textContent = money(r.redeemable);
-    note.textContent = "";
+    fillGroup("e", r.entertainers, "ENTERTAINER", "ENTERTAINERS");
+    $("card-srv").hidden = !r.servers;
+    if (r.servers) fillGroup("s", r.servers, "SERVER", "SERVERS");
+
+    $("t-give").innerHTML = giveHTML(r.total);
+    $("t-charge").textContent = money(r.total.charge);
+    $("t-redeem").textContent = money(r.total.redeemable);
+    return true;
+  }
+
+  function groupText(g, singular, plural) {
+    var lines = [];
+    if (g.count > 1) {
+      lines.push("Each " + singular.toLowerCase() + " (" + g.count + "):");
+      lines.push(g.each.large + " Large + " + g.each.small + " Small");
+      lines.push("Redeemable: " + money(g.each.redeemable));
+      lines.push("All " + g.count + " " + plural.toLowerCase() + ": " + g.all.large + " Large + " + g.all.small + " Small");
+    } else {
+      lines.push(singular.charAt(0) + singular.slice(1).toLowerCase() + ":");
+      lines.push(g.each.large + " Large + " + g.each.small + " Small");
+      lines.push("Redeemable: " + money(g.each.redeemable));
+    }
+    return lines;
   }
 
   function copyText() {
     if (!last) run();
     var r = last;
-    return [
-      "DANCE DOLLAR BREAKDOWN", "",
-      r.large + " Large + " + r.small + " Small",
-      "Redeemable: " + money(r.redeemable), "",
-      "Customer Charge: " + money(r.charge)
-    ].join("\n");
+    var out = ["DANCE DOLLAR BREAKDOWN", ""];
+    out = out.concat(groupText(r.entertainers, "ENTERTAINER", "ENTERTAINERS"), [""]);
+    if (r.servers) out = out.concat(groupText(r.servers, "SERVER", "SERVERS"), [""]);
+    out.push("Total: " + r.total.large + " Large + " + r.total.small + " Small");
+    out.push("Customer Charge: " + money(r.total.charge));
+    out.push("Redeemable: " + money(r.total.redeemable));
+    return out.join("\n");
   }
 
   function copy() {
-    run();
+    if (!run()) { note.textContent = "Fix the highlighted field first"; return; }
     var text = copyText();
     function done(ok) { note.textContent = ok ? "Copied" : "Copy failed"; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -227,13 +375,15 @@ if (typeof module !== "undefined") module.exports = DD;
   }
 
   function reset() {
-    dance.value = "";
+    dance.value = ""; server.value = ""; ecount.value = "1"; scount.value = "1";
     run();
     dance.focus();
   }
 
-  dance.addEventListener("input", run);
-  dance.addEventListener("keydown", function (e) { if (e.key === "Enter") { run(); dance.blur(); } });
+  [dance, ecount, server, scount].forEach(function (el) {
+    el.addEventListener("input", run);
+    el.addEventListener("keydown", function (e) { if (e.key === "Enter") { run(); el.blur(); } });
+  });
   $("calc").addEventListener("click", function () { run(); document.activeElement && document.activeElement.blur(); });
   $("reset").addEventListener("click", reset);
   $("copy").addEventListener("click", copy);
