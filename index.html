@@ -196,9 +196,7 @@
 /* ---- Pure business math (no DOM) ---- */
 var DD = (function () {
   var SMALL_CHARGE = 24, SMALL_REDEEM = 18, SMALL_PER_LARGE = 21;
-  var BLOCK_CENTS = 500 * 100;      // the club converts nominal Dance Dollars in $500 blocks
-  var UNITS_PER_BLOCK = 28;         // every $500 nominal = 28 small-equivalent units
-                                    //   = 1 Large + 7 Small = $504 redeemable / $672 charge
+  var SMALL_REDEEM_CENTS = SMALL_REDEEM * 100;
 
   function alloc(units) {
     return {
@@ -210,17 +208,16 @@ var DD = (function () {
     };
   }
 
-  // Small-equivalent units for ONE recipient's NOMINAL share (in cents, may be fractional
-  // after a split). Whole $500 blocks convert at 28 units each; the remainder below $500
-  // converts at one unit per $18, rounded UP. Any positive share gets at least 1 unit
-  // (one physical Small = $18 redeemable / $24 charge). $0 gives 0 units.
+  // Small-equivalent units for ONE recipient's target (in cents; may be fractional
+  // after a split). Proven against actual POS receipts:
+  //   minimumUnits = ceil(target / $18)            -- computed on integer cents
+  //   if minimumUnits % 21 === 20, add ONE unit    -- 20 Smalls become 1 Large
+  // Any positive target gets at least 1 unit (one physical Small). $0 gives 0 units.
   var EPS = 1e-9;
-  function unitsFor(shareCents) {
-    if (!(shareCents > 0)) return 0;
-    var blocks = Math.floor(shareCents / BLOCK_CENTS + EPS);
-    var remCents = shareCents - blocks * BLOCK_CENTS;
-    var remUnits = Math.max(0, Math.ceil(remCents / (SMALL_REDEEM * 100) - EPS));
-    return Math.max(1, blocks * UNITS_PER_BLOCK + remUnits);
+  function unitsFor(targetCents) {
+    if (!(targetCents > 0)) return 0;
+    var minimumUnits = Math.max(1, Math.ceil(targetCents / SMALL_REDEEM_CENTS - EPS));
+    return (minimumUnits % SMALL_PER_LARGE === SMALL_PER_LARGE - 1) ? minimumUnits + 1 : minimumUnits;
   }
 
   function bundleFor(shareCents) { return alloc(unitsFor(shareCents)); }
@@ -250,8 +247,7 @@ var DD = (function () {
     return { entertainers: ent, servers: srv, total: total };
   }
 
-  return { calculate: calculate, group: group, bundleFor: bundleFor, unitsFor: unitsFor, alloc: alloc,
-           BLOCK_CENTS: BLOCK_CENTS, UNITS_PER_BLOCK: UNITS_PER_BLOCK };
+  return { calculate: calculate, group: group, bundleFor: bundleFor, unitsFor: unitsFor, alloc: alloc };
 })();
 if (typeof module !== "undefined") module.exports = DD;
 </script>
