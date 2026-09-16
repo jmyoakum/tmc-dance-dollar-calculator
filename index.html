@@ -86,6 +86,8 @@
   .card .give { font-size: 34px; font-weight: 800; line-height: 1.15; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .card .give small { font-size: 18px; font-weight: 700; color: var(--muted); letter-spacing: 0.06em; }
   .card .give.all { font-size: 26px; }
+  .card .issued { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .issued b { color: var(--text); font-size: 16px; }
   .card .redeem { font-size: 16px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
   .card .redeem b { color: var(--text); font-weight: 700; }
   .card .group { border-top: 1px solid var(--line); margin-top: 12px; }
@@ -153,10 +155,12 @@
       <div class="title" id="e-title">ENTERTAINER</div>
       <div class="sub" id="e-each-k">GIVE</div>
       <div class="give" id="e-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="e-each-issued">0</b></div>
       <div class="redeem"><b id="e-redeem">$0</b> redeemable</div>
       <div class="group" id="e-all-group" hidden>
         <div class="sub" id="e-all-k">FOR 2 ENTERTAINERS</div>
         <div class="give all" id="e-all">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+        <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="e-all-issued">0</b></div>
       </div>
     </div>
 
@@ -164,16 +168,19 @@
       <div class="title" id="s-title">SERVER</div>
       <div class="sub" id="s-each-k">GIVE</div>
       <div class="give" id="s-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="s-each-issued">0</b></div>
       <div class="redeem"><b id="s-redeem">$0</b> redeemable</div>
       <div class="group" id="s-all-group" hidden>
         <div class="sub" id="s-all-k">FOR 2 SERVERS</div>
         <div class="give all" id="s-all">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+        <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="s-all-issued">0</b></div>
       </div>
     </div>
 
     <div class="card total">
       <div class="title">TOTAL TO RING UP</div>
       <div class="give" id="t-give">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+      <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="t-issued">0</b></div>
       <div class="charge-k">CUSTOMER CHARGE</div>
       <div class="charge-v" id="t-charge">$0</div>
       <div class="kv"><span class="k">REDEEMABLE VALUE</span><span class="v" id="t-redeem">$0</span></div>
@@ -288,13 +295,20 @@ if (typeof module !== "undefined") module.exports = DD;
     $(prefix + "-title").textContent = many ? plural : singular;
     $(prefix + "-each-k").textContent = many ? "EACH " + singular : "GIVE";
     $(prefix + "-each").innerHTML = giveHTML(g.each);
+    $(prefix + "-each-issued").textContent = num(g.each.units);          // authoritative unit count
     $(prefix + "-redeem").textContent = money(g.each.redeemable);
     $(prefix + "-all-group").hidden = !many;
     if (many) {
       $(prefix + "-all-k").textContent = "FOR " + g.count + " " + plural;
       $(prefix + "-all").innerHTML = giveHTML(g.all);
+      $(prefix + "-all-issued").textContent = num(groupUnits(g));
     }
   }
+
+  // Display-only: single-equivalent Dance Dollars issued (1 per Small, 21 per Large).
+  function num(n) { return n.toLocaleString("en-US"); }
+  function groupUnits(g) { return g.each.units * g.count; }
+  function totalUnits(r) { return groupUnits(r.entertainers) + (r.servers ? groupUnits(r.servers) : 0); }
 
   // Returns true when results were updated, false when blocked by an invalid field.
   function run() {
@@ -316,6 +330,7 @@ if (typeof module !== "undefined") module.exports = DD;
     if (r.servers) fillGroup("s", r.servers, "SERVER", "SERVERS");
 
     $("t-give").innerHTML = giveHTML(r.total);
+    $("t-issued").textContent = num(totalUnits(r));
     $("t-charge").textContent = money(r.total.charge);
     $("t-redeem").textContent = money(r.total.redeemable);
     return true;
@@ -326,11 +341,16 @@ if (typeof module !== "undefined") module.exports = DD;
     if (g.count > 1) {
       lines.push("Each " + singular.toLowerCase() + " (" + g.count + "):");
       lines.push(g.each.large + " Large + " + g.each.small + " Small");
+      lines.push("Dance Dollars Issued: " + num(g.each.units));
       lines.push("Redeemable: " + money(g.each.redeemable));
-      lines.push("All " + g.count + " " + plural.toLowerCase() + ": " + g.all.large + " Large + " + g.all.small + " Small");
+      lines.push("");
+      lines.push("All " + g.count + " " + plural.toLowerCase() + ":");
+      lines.push(g.all.large + " Large + " + g.all.small + " Small");
+      lines.push("Dance Dollars Issued: " + num(groupUnits(g)));
     } else {
       lines.push(singular.charAt(0) + singular.slice(1).toLowerCase() + ":");
       lines.push(g.each.large + " Large + " + g.each.small + " Small");
+      lines.push("Dance Dollars Issued: " + num(g.each.units));
       lines.push("Redeemable: " + money(g.each.redeemable));
     }
     return lines;
@@ -342,7 +362,9 @@ if (typeof module !== "undefined") module.exports = DD;
     var out = ["DANCE DOLLAR BREAKDOWN", ""];
     out = out.concat(groupText(r.entertainers, "ENTERTAINER", "ENTERTAINERS"), [""]);
     if (r.servers) out = out.concat(groupText(r.servers, "SERVER", "SERVERS"), [""]);
-    out.push("Total: " + r.total.large + " Large + " + r.total.small + " Small");
+    out.push("Total:");
+    out.push(r.total.large + " Large + " + r.total.small + " Small");
+    out.push("Dance Dollars Issued: " + num(totalUnits(r)));
     out.push("Customer Charge: " + money(r.total.charge));
     out.push("Redeemable: " + money(r.total.redeemable));
     return out.join("\n");
