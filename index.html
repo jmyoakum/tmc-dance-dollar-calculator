@@ -91,6 +91,7 @@
   .card .redeem { font-size: 16px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
   .card .redeem b { color: var(--text); font-weight: 700; }
   .card .group { border-top: 1px solid var(--line); margin-top: 12px; }
+  .card .person + .person { border-top: 1px solid var(--line); margin-top: 12px; }
 
   .card.total { background: var(--card-2); border-color: var(--accent); }
   .card.total .give { font-size: 30px; margin-top: 8px; }
@@ -166,10 +167,13 @@
 
     <div class="card" id="card-srv" hidden>
       <div class="title" id="s-title">SERVER</div>
-      <div class="sub" id="s-each-k">GIVE</div>
-      <div class="give" id="s-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
-      <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="s-each-issued">0</b></div>
-      <div class="redeem"><b id="s-redeem">$0</b> redeemable</div>
+      <div id="s-uniform">
+        <div class="sub" id="s-each-k">GIVE</div>
+        <div class="give" id="s-each">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
+        <div class="issued"># OF DANCE DOLLARS ISSUED: <b id="s-each-issued">0</b></div>
+        <div class="redeem"><b id="s-redeem">$0</b> redeemable</div>
+      </div>
+      <div id="s-people" hidden></div>
       <div class="group" id="s-all-group" hidden>
         <div class="sub" id="s-all-k">FOR 2 SERVERS</div>
         <div class="give all" id="s-all">0 <small>LARGE</small> + 0 <small>SMALL</small></div>
@@ -242,10 +246,29 @@ var DD = (function () {
     };
   }
 
+  // SERVERS ONLY: Server Dance Dollars is a GROUP POOL. Convert the whole pool once with the
+  // same bundle function, then hand the whole units out as evenly as possible. The first
+  // (groupUnits % count) servers get one extra unit. No unit is ever created just to make
+  // the servers identical, so individual counts differ by at most 1 and always sum to the pool.
+  function serverPool(amountDollars, count) {
+    var amountCents = Math.round(amountDollars * 100);
+    var groupUnits = bundleFor(amountCents).units;
+    var base = Math.floor(groupUnits / count), extra = groupUnits % count;
+    var people = [], all = { large: 0, small: 0, charge: 0, redeemable: 0 };
+    for (var i = 0; i < count; i++) {
+      var p = alloc(base + (i < extra ? 1 : 0));     // each person's own Large + Small
+      people.push(p);
+      all.large += p.large; all.small += p.small; all.charge += p.charge; all.redeemable += p.redeemable;
+    }
+    var uniform = (extra === 0);
+    return { count: count, pooled: true, uniform: uniform, groupUnits: groupUnits,
+             people: people, each: uniform ? people[0] : null, all: all };
+  }
+
   // dance/server are non-negative dollar amounts; counts are whole numbers >= 1.
   function calculate(dance, entertainers, server, servers) {
     var ent = group(dance, entertainers);
-    var srv = (server > 0) ? group(server, servers) : null;
+    var srv = (server > 0) ? serverPool(server, servers) : null;
     var total = { large: ent.all.large, small: ent.all.small, charge: ent.all.charge, redeemable: ent.all.redeemable };
     if (srv) {
       total.large += srv.all.large; total.small += srv.all.small;
@@ -254,7 +277,7 @@ var DD = (function () {
     return { entertainers: ent, servers: srv, total: total };
   }
 
-  return { calculate: calculate, group: group, bundleFor: bundleFor, unitsFor: unitsFor, alloc: alloc };
+  return { calculate: calculate, group: group, serverPool: serverPool, bundleFor: bundleFor, unitsFor: unitsFor, alloc: alloc };
 })();
 if (typeof module !== "undefined") module.exports = DD;
 </script>
@@ -307,7 +330,44 @@ if (typeof module !== "undefined") module.exports = DD;
 
   // Display-only: single-equivalent Dance Dollars issued (1 per Small, 21 per Large).
   function num(n) { return n.toLocaleString("en-US"); }
-  function groupUnits(g) { return g.each.units * g.count; }
+  function groupUnits(g) { return g.pooled ? g.groupUnits : g.each.units * g.count; }
+
+  // SERVERS: identical counts keep the normal EACH / FOR N presentation. When the pool does
+  // not divide evenly, list every server with their own bills, DD count and redeemable value.
+  function fillServers(g) {
+    $("s-uniform").hidden = !g.uniform;
+    $("s-people").hidden = g.uniform;
+    if (g.uniform) { $("s-people").innerHTML = ""; fillGroup("s", g, "SERVER", "SERVERS"); return; }
+    $("s-title").textContent = "SERVERS";
+    $("s-people").innerHTML = g.people.map(function (p, i) {
+      return '<div class="person">' +
+        '<div class="sub">SERVER ' + (i + 1) + '</div>' +
+        '<div class="give">' + giveHTML(p) + '</div>' +
+        '<div class="issued"># OF DANCE DOLLARS ISSUED: <b>' + num(p.units) + '</b></div>' +
+        '<div class="redeem"><b>' + money(p.redeemable) + '</b> redeemable</div>' +
+        '</div>';
+    }).join("");
+    $("s-all-group").hidden = false;
+    $("s-all-k").textContent = "FOR " + g.count + " SERVERS";
+    $("s-all").innerHTML = giveHTML(g.all);
+    $("s-all-issued").textContent = num(g.groupUnits);
+  }
+
+  function serverText(g) {
+    if (g.uniform) return groupText(g, "SERVER", "SERVERS");
+    var lines = [];
+    g.people.forEach(function (p, i) {
+      lines.push("Server " + (i + 1) + ":");
+      lines.push(p.large + " Large + " + p.small + " Small");
+      lines.push("Dance Dollars Issued: " + num(p.units));
+      lines.push("Redeemable: " + money(p.redeemable));
+      lines.push("");
+    });
+    lines.push("All " + g.count + " servers:");
+    lines.push(g.all.large + " Large + " + g.all.small + " Small");
+    lines.push("Dance Dollars Issued: " + num(g.groupUnits));
+    return lines;
+  }
   function totalUnits(r) { return groupUnits(r.entertainers) + (r.servers ? groupUnits(r.servers) : 0); }
 
   // Returns true when results were updated, false when blocked by an invalid field.
@@ -327,7 +387,7 @@ if (typeof module !== "undefined") module.exports = DD;
 
     fillGroup("e", r.entertainers, "ENTERTAINER", "ENTERTAINERS");
     $("card-srv").hidden = !r.servers;
-    if (r.servers) fillGroup("s", r.servers, "SERVER", "SERVERS");
+    if (r.servers) fillServers(r.servers);
 
     $("t-give").innerHTML = giveHTML(r.total);
     $("t-issued").textContent = num(totalUnits(r));
@@ -361,7 +421,7 @@ if (typeof module !== "undefined") module.exports = DD;
     var r = last;
     var out = ["DANCE DOLLAR BREAKDOWN", ""];
     out = out.concat(groupText(r.entertainers, "ENTERTAINER", "ENTERTAINERS"), [""]);
-    if (r.servers) out = out.concat(groupText(r.servers, "SERVER", "SERVERS"), [""]);
+    if (r.servers) out = out.concat(serverText(r.servers), [""]);
     out.push("Total:");
     out.push(r.total.large + " Large + " + r.total.small + " Small");
     out.push("Dance Dollars Issued: " + num(totalUnits(r)));
