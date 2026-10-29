@@ -105,10 +105,6 @@
 
   .ref { margin-top: 26px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; }
   .ref b { color: var(--text); font-weight: 700; }
-
-  /* TEMPORARY: shown until Charlotte payout rules are confirmed (see DD.PENDING) */
-  .pending { border: 2px solid #e5484d; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
-    color: #ff8a8e; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-align: center; }
 </style>
 </head>
 <body>
@@ -118,8 +114,6 @@
     <div class="t1">DANCE DOLLAR</div>
     <div class="t2">Charlotte Calculator</div>
   </header>
-
-  <div class="pending" id="pending" hidden>PAYOUT RULES PENDING OWNER CONFIRMATION<br>NOT FOR USE AT THE REGISTER</div>
 
   <div class="pair">
     <div class="field" id="f-dance">
@@ -211,41 +205,81 @@
 
 <script id="dd-core">
 /* ---- Pure business math (no DOM) — CHARLOTTE ---- */
+/* Same algorithm as Houston; only the three price constants differ.          */
+/* Rules R1-R8 owner-confirmed; Charlotte POS receipts NOT yet verified.      */
 var DD = (function () {
-  // Confirmed Charlotte pricing. A Large is exactly 25 Smalls in both charge
-  // ($625 = 25 x $25) and redemption ($500 = 25 x $20), so every amount is a
-  // whole number of small-equivalent units times an integer dollar price.
-  var SMALL_CHARGE = 25, SMALL_REDEEM = 20, SMALL_PER_LARGE = 25;
+  var SMALL_CHARGE = 25, SMALL_REDEEM = 20, SMALL_PER_LARGE = 25;   // Large = 25 Smalls = $625 / $500
+  var SMALL_REDEEM_CENTS = SMALL_REDEEM * 100;
 
   function alloc(units) {
     return {
       units: units,
-      large: Math.floor(units / SMALL_PER_LARGE),   // breakdown itself is pending R5
+      large: Math.floor(units / SMALL_PER_LARGE),
       small: units % SMALL_PER_LARGE,
       charge: units * SMALL_CHARGE,
       redeemable: units * SMALL_REDEEM
     };
   }
 
-  // PAYOUT RULES PENDING OWNER CONFIRMATION. Houston's rules are NOT assumed for
-  // Charlotte; each id matches a question in the Charlotte rules review.
-  var PENDING = [
-    "R1 dollar input = redeemable value",
-    "R2 rounding of amounts not a multiple of $20",
-    "R3 minimum one Small",
-    "R4 24 Smalls round up to a Large",
-    "R5 Large/Small breakdown per recipient",
-    "R6 entertainer split method",
-    "R7 server pool distribution",
-    "R8 Dance Dollars issued / ring-up count"
-  ];
+  // Small-equivalent units for ONE recipient's target (in cents; may be fractional
+  // after a split). Houston rule (proven on Houston POS receipts), applied to Charlotte:
+  //   minimumUnits = ceil(target / $20)            -- computed on integer cents
+  //   if minimumUnits % 25 === 24, add ONE unit    -- 24 Smalls become 1 Large
+  // Any positive target gets at least 1 unit (one physical Small). $0 gives 0 units.
+  var EPS = 1e-9;
+  function unitsFor(targetCents) {
+    if (!(targetCents > 0)) return 0;
+    var minimumUnits = Math.max(1, Math.ceil(targetCents / SMALL_REDEEM_CENTS - EPS));
+    return (minimumUnits % SMALL_PER_LARGE === SMALL_PER_LARGE - 1) ? minimumUnits + 1 : minimumUnits;
+  }
 
-  // Blocked until every rule above is confirmed: returns null and the UI shows
-  // nothing (same approach Houston V3 used for its then-unproven amounts).
-  function calculate() { return null; }
+  function bundleFor(shareCents) { return alloc(unitsFor(shareCents)); }
 
-  return { calculate: calculate, alloc: alloc, PENDING: PENDING,
-           SMALL_CHARGE: SMALL_CHARGE, SMALL_REDEEM: SMALL_REDEEM, SMALL_PER_LARGE: SMALL_PER_LARGE };
+  // Split rule: divide the nominal amount per recipient FIRST, compute ONE
+  // recipient's physical bundle, then multiply the pieces by the head count.
+  function group(amountDollars, count) {
+    var amountCents = Math.round(amountDollars * 100);
+    var each = bundleFor(amountCents / count);
+    return {
+      count: count,
+      each: each,
+      all: { large: each.large * count, small: each.small * count,
+             charge: each.charge * count, redeemable: each.redeemable * count }
+    };
+  }
+
+  // SERVERS ONLY: Server Dance Dollars is a GROUP POOL. Convert the whole pool once with the
+  // same bundle function, then hand the whole units out as evenly as possible. The first
+  // (groupUnits % count) servers get one extra unit. No unit is ever created just to make
+  // the servers identical, so individual counts differ by at most 1 and always sum to the pool.
+  function serverPool(amountDollars, count) {
+    var amountCents = Math.round(amountDollars * 100);
+    var groupUnits = bundleFor(amountCents).units;
+    var base = Math.floor(groupUnits / count), extra = groupUnits % count;
+    var people = [], all = { large: 0, small: 0, charge: 0, redeemable: 0 };
+    for (var i = 0; i < count; i++) {
+      var p = alloc(base + (i < extra ? 1 : 0));     // each person's own Large + Small
+      people.push(p);
+      all.large += p.large; all.small += p.small; all.charge += p.charge; all.redeemable += p.redeemable;
+    }
+    var uniform = (extra === 0);
+    return { count: count, pooled: true, uniform: uniform, groupUnits: groupUnits,
+             people: people, each: uniform ? people[0] : null, all: all };
+  }
+
+  // dance/server are non-negative dollar amounts; counts are whole numbers >= 1.
+  function calculate(dance, entertainers, server, servers) {
+    var ent = group(dance, entertainers);
+    var srv = (server > 0) ? serverPool(server, servers) : null;
+    var total = { large: ent.all.large, small: ent.all.small, charge: ent.all.charge, redeemable: ent.all.redeemable };
+    if (srv) {
+      total.large += srv.all.large; total.small += srv.all.small;
+      total.charge += srv.all.charge; total.redeemable += srv.all.redeemable;
+    }
+    return { entertainers: ent, servers: srv, total: total };
+  }
+
+  return { calculate: calculate, group: group, serverPool: serverPool, bundleFor: bundleFor, unitsFor: unitsFor, alloc: alloc };
 })();
 if (typeof module !== "undefined") module.exports = DD;
 </script>
@@ -296,7 +330,7 @@ if (typeof module !== "undefined") module.exports = DD;
     }
   }
 
-  // Display-only: single-equivalent Dance Dollars issued (1 per Small, 21 per Large).
+  // Display-only: single-equivalent Dance Dollars issued (1 per Small, 25 per Large).
   function num(n) { return n.toLocaleString("en-US"); }
   function groupUnits(g) { return g.pooled ? g.groupUnits : g.each.units * g.count; }
 
@@ -351,8 +385,6 @@ if (typeof module !== "undefined") module.exports = DD;
     if (ec.bad || scBad) return false;   // BLOCK: leave the results untouched until corrected
 
     var r = DD.calculate(d.value, ec.value, s.value, serverActive ? sc.value : 1);
-    $("pending").hidden = !!r;
-    if (!r) return false;                // BLOCK: Charlotte payout rules not yet confirmed
     last = r;
 
     fillGroup("e", r.entertainers, "ENTERTAINER", "ENTERTAINERS");
@@ -401,7 +433,7 @@ if (typeof module !== "undefined") module.exports = DD;
   }
 
   function copy() {
-    if (!run()) { note.textContent = document.querySelector(".field.bad") ? "Fix the highlighted field first" : "Payout rules pending confirmation"; return; }
+    if (!run()) { note.textContent = "Fix the highlighted field first"; return; }
     var text = copyText();
     function done(ok) { note.textContent = ok ? "Copied" : "Copy failed"; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
