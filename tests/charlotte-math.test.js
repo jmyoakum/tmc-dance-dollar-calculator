@@ -85,4 +85,9 @@ eq([m.large, m.small, m.charge, m.redeemable], [3, 0, 1875, 1500], "mixed $480 +
     eq([a.large, a.small, a.charge, a.redeemable, a.charge - a.redeemable], [t[0], t[1], t[2], t[3], t[4]], "pricing " + t[0] + "L+" + t[1] + "S");
   });
 
+// 5. Copy-to-clipboard heading: Charlotte names its location; Houston keeps its original format.
+function count(file, text) { return fs.readFileSync(path.join(ROOT, file), "utf8").split(text).length - 1; }
+eq(count("charlotte/index.html", 'var out = ["DANCE DOLLAR BREAKDOWN \u2014 CHARLOTTE", ""];'), 1, "Charlotte copy heading");
+eq(count("index.html", 'var out = ["DANCE DOLLAR BREAKDOWN", ""];'), 1, "Houston copy heading unchanged");
+
 console.log("charlotte-math: " + passed + " assertions passed");
